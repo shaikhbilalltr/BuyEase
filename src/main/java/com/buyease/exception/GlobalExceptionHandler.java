@@ -1,6 +1,8 @@
 package com.buyease.exception;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +17,32 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+
+        List<String> validationErrors = new ArrayList<>();
+        ex.getBindingResult().getAllErrors().forEach(error -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            validationErrors.add(fieldName + ": " + errorMessage);
+        });
+
+        ApiError apiError = ApiError.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .message("Validation failed")
+                .error("Bad Request")
+                .timestamp(LocalDateTime.now())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .validationErrors(validationErrors)
+                .build();
+
+        return new ResponseEntity<>(apiError, HttpStatus.BAD_REQUEST);
+    }
 
     /**
      * Handle ProductNotFoundException
@@ -52,33 +80,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .build();
         
         return new ResponseEntity<>(apiError, HttpStatus.CONFLICT);
-    }
-
-    /**
-     * Handle validation errors
-     */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> handleValidationException(
-            MethodArgumentNotValidException ex,
-            WebRequest request) {
-        
-        List<String> validationErrors = new ArrayList<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            validationErrors.add(fieldName + ": " + errorMessage);
-        });
-        
-        ApiError apiError = ApiError.builder()
-                .status(HttpStatus.BAD_REQUEST.value())
-                .message("Validation failed")
-                .error("Bad Request")
-                .timestamp(LocalDateTime.now())
-                .path(request.getDescription(false).replace("uri=", ""))
-                .validationErrors(validationErrors)
-                .build();
-        
-        return new ResponseEntity<>(apiError, HttpStatus.BAD_REQUEST);
     }
 
     /**
